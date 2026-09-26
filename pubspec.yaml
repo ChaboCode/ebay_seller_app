@@ -11,31 +11,37 @@ dependencies:
     sdk: flutter
 
   # HTTP & Networking
-  dio: ^5.4.0
-  connectivity_plus: ^7.2.0
+  dio: ^5.9.2
 
   # State Management
   flutter_riverpod: ^3.3.2
 
   # Local Cache / Persistence
-  hive: ^2.2.3
-  hive_flutter: ^1.1.0
+  # NOTE: using hive_ce (Community Edition), the actively maintained fork of
+  # the original `hive` package, which has been unmaintained since 2022.
+  hive_ce: ^2.19.3
+  hive_ce_flutter: ^2.3.4
 
   # Images
   cached_network_image: ^3.3.1
+  gal: ^2.3.2
 
   # Utilities
   intl: ^0.20.3
-  url_launcher: ^6.2.5
+  url_launcher: ^6.3.2
   share_plus: ^13.2.0
   flutter_cache_manager: ^3.3.1
 
   # Env variables
-  flutter_dotenv: ^5.2.1
+  flutter_dotenv: ^6.0.1
+
+  # Web interop (replaces the deprecated dart:html on web builds)
+  web: ^1.1.1
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  flutter_lints: ^5.0.0
 
 flutter:
   uses-material-design: true

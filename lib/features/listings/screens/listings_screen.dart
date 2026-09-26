@@ -6,7 +6,7 @@ import '../../../core/utils/app_config.dart';
 import '../providers/listings_provider.dart';
 import '../widgets/filter_sheet.dart';
 import '../widgets/listing_cards.dart';
-import '../widgets/listing_table.dart' show EmptyListingsState;
+import '../widgets/empty_listings_state.dart';
 import '../widgets/offline_banner.dart';
 
 class ListingsScreen extends ConsumerWidget {
@@ -16,7 +16,6 @@ class ListingsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(listingsProvider);
     final sort = ref.watch(sortProvider);
-    final heatFilter = ref.watch(heatFilterProvider);
 
     return Scaffold(
       backgroundColor: AppTheme.background,
@@ -178,7 +177,6 @@ class ListingsScreen extends ConsumerWidget {
     List<EbayListing> listings,
     WidgetRef ref,
   ) {
-    // 👈 ACÁ, reemplazando el método viejo
     final filter = ref.watch(heatFilterProvider);
     if (filter == HeatFilter.all) return listings;
 
