@@ -2,12 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../shared/theme/app_theme.dart';
 import '../../../core/models/listing.dart';
-import '../../../core/utils/app_config.dart';
+import '../../stores/models/seller_store.dart';
+import '../../stores/providers/stores_provider.dart';
+import '../../stores/screens/stores_settings_screen.dart';
 import '../providers/listings_provider.dart';
 import '../widgets/filter_sheet.dart';
 import '../widgets/listing_cards.dart';
 import '../widgets/empty_listings_state.dart';
 import '../widgets/offline_banner.dart';
+import '../widgets/store_pills.dart';
 
 class ListingsScreen extends ConsumerWidget {
   const ListingsScreen({super.key});
@@ -16,6 +19,9 @@ class ListingsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(listingsProvider);
     final sort = ref.watch(sortProvider);
+    final store = ref.watch(storesProvider.select((s) => s.selected));
+    final heat = ref.watch(heatFilterProvider);
+    final visible = _applyHeatFilter(state.listings, heat);
 
     return Scaffold(
       backgroundColor: AppTheme.background,
@@ -33,7 +39,7 @@ class ListingsScreen extends ConsumerWidget {
               ),
             ),
             Text(
-              '@${AppConfig.defaultSellerUsername}',
+              store == null ? 'No store selected' : '@${store.username}',
               style: const TextStyle(
                 fontSize: 11,
                 color: AppTheme.textMuted,
@@ -54,7 +60,9 @@ class ListingsScreen extends ConsumerWidget {
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Text(
-                  '${state.listings.length} items',
+                  heat == HeatFilter.all
+                      ? '${state.listings.length} items'
+                      : '${visible.length} / ${state.listings.length} items',
                   style: const TextStyle(
                     fontSize: 11,
                     color: AppTheme.textMuted,
@@ -75,8 +83,8 @@ class ListingsScreen extends ConsumerWidget {
                   color: AppTheme.textPrimary,
                   size: 22,
                 ),
-                // Dot when non-default sort is active
-                if (sort != ListingSort.endingSoon)
+                // Dot when a non-default sort or heat filter is active
+                if (sort != ListingSort.endingSoon || heat != HeatFilter.all)
                   Positioned(
                     top: -2,
                     right: -2,
@@ -116,11 +124,27 @@ class ListingsScreen extends ConsumerWidget {
             tooltip: 'Refresh',
           ),
 
+          // Settings button
+          IconButton(
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const StoresSettingsScreen()),
+            ),
+            icon: const Icon(
+              Icons.settings_outlined,
+              color: AppTheme.textPrimary,
+              size: 22,
+            ),
+            tooltip: 'Settings',
+          ),
+
           const SizedBox(width: 4),
         ],
       ),
       body: Column(
         children: [
+          // ── Store pills ────────────────────────────────────────────────────
+          const StorePills(),
+
           // ── Offline banner ─────────────────────────────────────────────────
           if (state.isOffline) OfflineBanner(lastUpdated: state.lastUpdated),
 
@@ -137,7 +161,9 @@ class ListingsScreen extends ConsumerWidget {
             _LastUpdatedBar(updatedAt: state.lastUpdated!),
 
           // ── Content ────────────────────────────────────────────────────────
-          Expanded(child: _buildContent(context, ref, state)),
+          Expanded(
+            child: _buildContent(context, ref, state, store, heat, visible),
+          ),
         ],
       ),
     );
@@ -147,7 +173,17 @@ class ListingsScreen extends ConsumerWidget {
     BuildContext context,
     WidgetRef ref,
     ListingsState state,
+    SellerStore? store,
+    HeatFilter heat,
+    List<EbayListing> visible,
   ) {
+    // No store configured
+    if (store == null) {
+      return const EmptyListingsState(
+        message: 'No store selected.\nAdd one from Settings.',
+      );
+    }
+
     // Initial loading (no cache available)
     if (state.isLoading && state.listings.isEmpty) {
       return const _LoadingState();
@@ -158,7 +194,15 @@ class ListingsScreen extends ConsumerWidget {
       return EmptyListingsState(
         message: state.error != null
             ? 'Could not load listings.\nCheck your App ID and seller username.'
-            : 'No active listings for @${AppConfig.defaultSellerUsername}',
+            : 'No active listings for @${store.username}',
+      );
+    }
+
+    // The heat filter hides everything
+    if (visible.isEmpty) {
+      return EmptyListingsState(
+        message:
+            'No auctions match ${heat.label}.\nChange it from Sort & Filter.',
       );
     }
 
@@ -169,15 +213,14 @@ class ListingsScreen extends ConsumerWidget {
           .refresh(sort: ref.read(sortProvider)),
       color: AppTheme.accent,
       backgroundColor: AppTheme.surfaceAlt,
-      child: ListingsCards(listings: _applyHeatFilter(state.listings, ref)),
+      child: ListingsCards(listings: visible),
     );
   }
 
   List<EbayListing> _applyHeatFilter(
     List<EbayListing> listings,
-    WidgetRef ref,
+    HeatFilter filter,
   ) {
-    final filter = ref.watch(heatFilterProvider);
     if (filter == HeatFilter.all) return listings;
 
     return listings.where((l) {

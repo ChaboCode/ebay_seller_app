@@ -1,10 +1,14 @@
 import 'package:hive_ce_flutter/hive_ce_flutter.dart';
+import '../../features/stores/models/seller_store.dart';
 import '../models/listing.dart';
 
 /// Manages local persistence of listings with TTL-based invalidation.
 class CacheService {
   static const _listingsBoxName = 'listings_cache';
   static const _metaBoxName = 'cache_meta';
+  static const _storesBoxName = 'stores';
+  static const _storesListKey = 'list';
+  static const _selectedStoreKey = 'selected';
 
   // Cache is considered fresh for 30 minutes
   static const cacheTTL = Duration(minutes: 30);
@@ -20,6 +24,7 @@ class CacheService {
 
   late final Box<EbayListing> _listingsBox;
   late final Box<dynamic> _metaBox;
+  late final Box<dynamic> _storesBox;
 
   CacheService._();
 
@@ -32,10 +37,30 @@ class CacheService {
     final service = CacheService._();
     service._listingsBox = await Hive.openBox<EbayListing>(_listingsBoxName);
     service._metaBox = await Hive.openBox<dynamic>(_metaBoxName);
+    service._storesBox = await Hive.openBox<dynamic>(_storesBoxName);
 
     _instance = service;
     return service;
   }
+
+  // ── Stores (configured sellers) ───────────────────────────────────────────
+
+  List<SellerStore> getStores() {
+    final raw = _storesBox.get(_storesListKey);
+    if (raw is! List) return [];
+    return [
+      for (final e in raw)
+        if (e is Map) SellerStore.fromMap(e),
+    ];
+  }
+
+  Future<void> saveStores(List<SellerStore> stores) =>
+      _storesBox.put(_storesListKey, [for (final s in stores) s.toMap()]);
+
+  String? getSelectedStore() => _storesBox.get(_selectedStoreKey) as String?;
+
+  Future<void> setSelectedStore(String username) =>
+      _storesBox.put(_selectedStoreKey, username);
 
   // ── Read ──────────────────────────────────────────────────────────────────
 

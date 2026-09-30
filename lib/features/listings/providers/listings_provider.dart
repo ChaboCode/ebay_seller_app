@@ -2,7 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/api/ebay_api_client.dart';
 import '../../../core/cache/cache_service.dart';
 import '../../../core/models/listing.dart';
-import '../../../core/utils/app_config.dart';
+import '../../stores/providers/stores_provider.dart';
 
 // ── API Client provider ───────────────────────────────────────────────────────
 
@@ -65,38 +65,46 @@ class ListingsState {
 // ── Listings notifier ─────────────────────────────────────────────────────────
 
 class ListingsNotifier extends Notifier<ListingsState> {
-  late final EbayApiClient _api;
-  late final CacheService _cache;
-  late final String sellerUsername;
+  EbayApiClient get _api => ref.read(ebayClientProvider);
+  CacheService get _cache => CacheService.instance;
+
+  /// Currently selected store. `build()` re-runs whenever it changes.
+  String? sellerUsername;
 
   @override
   ListingsState build() {
-    _api = ref.read(ebayClientProvider);
-    _cache = CacheService.instance;
-    sellerUsername = AppConfig.defaultSellerUsername;
+    sellerUsername = ref.watch(
+      storesProvider.select((s) => s.selectedUsername),
+    );
+
+    // No store configured: nothing to load.
+    if (sellerUsername == null) return const ListingsState();
 
     Future.microtask(() => load(sort: ref.read(sortProvider)));
 
-    return const ListingsState();
+    return const ListingsState(isLoading: true);
   }
 
   /// Load listings: show cache immediately, then refresh if stale.
   Future<void> load({ListingSort sort = ListingSort.endingSoon}) async {
+    final seller = sellerUsername;
+    if (seller == null) return;
+
     state = state.copyWith(isLoading: true, clearError: true);
 
     // 1. Show cached data immediately (offline-first)
-    final cached = _cache.getListings(sellerUsername);
+    final cached = _cache.getListings(seller);
     if (cached.isNotEmpty) {
       final sorted = _sortLocally(cached, sort);
       state = state.copyWith(
         listings: sorted,
         isLoading: false,
-        lastUpdated: _cache.lastFetchTime(sellerUsername),
+        lastUpdated: _cache.lastFetchTime(seller),
       );
     }
 
     // 2. If cache is fresh, done
-    if (_cache.isCacheFresh(sellerUsername) && cached.isNotEmpty) {
+    if (_cache.isCacheFresh(seller) && cached.isNotEmpty) {
       return;
     }
 
@@ -106,6 +114,7 @@ class ListingsNotifier extends Notifier<ListingsState> {
 
   /// Force refresh from API regardless of cache freshness.
   Future<void> refresh({ListingSort sort = ListingSort.endingSoon}) async {
+    if (sellerUsername == null) return;
     state = state.copyWith(isRefreshing: true, clearError: true);
     await _fetchFromApi(sort: sort, isRefresh: true);
   }
@@ -122,9 +131,16 @@ class ListingsNotifier extends Notifier<ListingsState> {
     required ListingSort sort,
     bool isRefresh = false,
   }) async {
+    final seller = sellerUsername;
+    if (seller == null) return;
+
+    // The user may switch store while the request is in flight; a late
+    // response must not overwrite the state of the newly selected store.
+    bool isStale() => !ref.mounted || sellerUsername != seller;
+
     try {
       final listings = await _api.getAllSellerListings(
-        sellerUsername: sellerUsername,
+        sellerUsername: seller,
         sort: sort,
       );
 
@@ -133,7 +149,12 @@ class ListingsNotifier extends Notifier<ListingsState> {
       // que el filtro seleccionado se refleje en pantalla.
       final sorted = _sortLocally(listings, sort);
 
-      await _cache.saveListings(sellerUsername, sorted);
+      // Still worth caching for the old store, unless it was deleted.
+      if (ref.mounted &&
+          ref.read(storesProvider).stores.any((s) => s.username == seller)) {
+        await _cache.saveListings(seller, sorted);
+      }
+      if (isStale()) return;
 
       state = state.copyWith(
         listings: sorted,
@@ -144,6 +165,7 @@ class ListingsNotifier extends Notifier<ListingsState> {
         clearError: true,
       );
     } on EbayApiException catch (e) {
+      if (isStale()) return;
       final isConnErr =
           e.message.contains('internet') || e.message.contains('timed out');
 
@@ -154,6 +176,7 @@ class ListingsNotifier extends Notifier<ListingsState> {
         isOffline: isConnErr,
       );
     } catch (e) {
+      if (isStale()) return;
       state = state.copyWith(
         isLoading: false,
         isRefreshing: false,

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/models/listing.dart';
 import '../../../shared/theme/app_theme.dart';
+import '../../../shared/widgets/selectable_pill.dart';
 import '../providers/listings_provider.dart';
 
 class FilterSheet extends ConsumerWidget {
@@ -77,43 +78,16 @@ class FilterSheet extends ConsumerWidget {
             Wrap(
               spacing: 8,
               runSpacing: 8,
-              children: HeatFilter.values.map((heat) {
-                final isSelected = currentHeat == heat;
-                return GestureDetector(
-                  onTap: () =>
-                      ref.read(heatFilterProvider.notifier).setFilter(heat),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 10,
+              children: HeatFilter.values
+                  .map(
+                    (heat) => SelectablePill(
+                      label: heat.label,
+                      isSelected: currentHeat == heat,
+                      onTap: () =>
+                          ref.read(heatFilterProvider.notifier).setFilter(heat),
                     ),
-                    decoration: BoxDecoration(
-                      color: isSelected
-                          ? AppTheme.accent.withValues(alpha: 0.1)
-                          : AppTheme.surface,
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color: isSelected
-                            ? AppTheme.accent.withValues(alpha: 0.4)
-                            : AppTheme.divider,
-                        width: isSelected ? 1.5 : 1,
-                      ),
-                    ),
-                    child: Text(
-                      heat.label,
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: isSelected
-                            ? FontWeight.w600
-                            : FontWeight.w400,
-                        color: isSelected
-                            ? AppTheme.accent
-                            : AppTheme.textPrimary,
-                      ),
-                    ),
-                  ),
-                );
-              }).toList(),
+                  )
+                  .toList(),
             ),
           ],
         ),
