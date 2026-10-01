@@ -70,6 +70,13 @@ class EbayListing extends HiveObject {
 
   bool get endingSoon => timeRemaining.inHours < 2 && !isEnded;
 
+  /// Numeric eBay item id ("v1|123456789|0" → "123456789"), the id shown on
+  /// eBay and the key the backend uses for Odoo.
+  String get legacyItemId {
+    final parts = itemId.split('|');
+    return parts.length > 1 ? parts[1] : itemId;
+  }
+
   /// eBay a veces manda imágenes en baja resolución (ej. s-l225.jpg).
   /// Esto las cambia a la versión de alta resolución (s-l1600.jpg) para
   /// que se vean bien en el visor de pantalla completa.

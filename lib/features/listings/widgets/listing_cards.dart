@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../../core/models/listing.dart';
+import '../../../core/utils/money.dart';
 import '../../../shared/theme/app_theme.dart';
+import '../../odoo/widgets/odoo_purchase_button.dart';
 import 'countdown_widget.dart';
 import 'image_carousel.dart';
 
@@ -54,7 +56,18 @@ class _ListingCard extends StatelessWidget {
               // ── Image: fills the entire height of the card ─────────────
               SizedBox(
                 width: 100,
-                child: ListingImageThumb(imageUrls: listing.imageUrls),
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    ListingImageThumb(imageUrls: listing.imageUrls),
+                    // Odoo purchase state / add to Odoo
+                    Positioned(
+                      top: 6,
+                      left: 6,
+                      child: OdooPurchaseButton(listing: listing),
+                    ),
+                  ],
+                ),
               ),
 
               // ── Content ─────────────────────────────────────────────────
@@ -84,7 +97,7 @@ class _ListingCard extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
                           Text(
-                            _formatPrice(listing.price, listing.currency),
+                            formatMoney(listing.price, listing.currency),
                             style: const TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.w800,
@@ -174,17 +187,6 @@ class _ListingCard extends StatelessWidget {
     SharePlus.instance.share(
       ShareParams(text: '${listing.title}\n${listing.listingUrl}'),
     );
-  }
-
-  String _formatPrice(double price, String currency) {
-    final symbol = currency == 'USD'
-        ? '\$'
-        : currency == 'EUR'
-        ? '€'
-        : currency == 'GBP'
-        ? '£'
-        : '$currency ';
-    return '$symbol${price.toStringAsFixed(2)}';
   }
 }
 

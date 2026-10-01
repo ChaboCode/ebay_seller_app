@@ -16,6 +16,7 @@ flutter test                          # only test/widget_test.dart exists
 flutter test test/widget_test.dart    # single test file
 flutter run --release                 # or: flutter run -d chrome --release
 flutter run --dart-define=API_URL=http://localhost:PORT/   # point at a different backend
+flutter run --dart-define=ODOO_BRIDGE_TOKEN=...             # only if the backend sets ODOO_BRIDGE_TOKEN
 flutter build apk --release --split-per-abi
 flutter build web --release
 ```
@@ -23,7 +24,7 @@ flutter build web --release
 ## Setup requirements
 
 - A `.env` file in the repo root (gitignored, but declared as a Flutter **asset** in pubspec.yaml, so the app fails to build/start without it). It needs only `EBAY_SELLER_USERNAME=...` (the initial store; more can be added in-app from Settings). It is bundled into the build, so never put eBay Client ID/Secret in it.
-- The app never talks to eBay directly. It calls our own Go backend (separate repo `ebay_seller_backend`), which holds the OAuth credentials. Default base URL is `https://ebay-back.kaerdos.dev/`, overridable via `--dart-define=API_URL=`. The default is duplicated as a `String.fromEnvironment` in both `lib/core/api/ebay_api_client.dart` and `lib/core/utils/image_proxy.dart`, so change both if it ever changes.
+- The app never talks to eBay directly. It calls our own Go backend (separate repo `ebay_seller_backend`), which holds the OAuth credentials. Default base URL is `https://ebay-back.kaerdos.dev/`, overridable via `--dart-define=API_URL=`. It lives in one place, `AppConfig.apiUrl` (`lib/core/utils/app_config.dart`), used by both API clients and `ImageProxy`.
 
 ## Architecture
 
@@ -47,6 +48,8 @@ Feature-first layout: `lib/core` (api, cache, models, utils), `lib/features/list
 **Platform switching:** `core/utils/image_saver.dart` is a conditional export, choosing `image_saver_io.dart` (uses `gal`) or `image_saver_web.dart` (browser download via `package:web`) with `dart.library.js_interop`. Keep the web variant free of `dart:io`, and the io variant free of `package:web`.
 
 **Multi-store:** the user-configured sellers live in `features/stores` (`SellerStore` model, `storesProvider`, settings screen + add/edit dialog). They are persisted in a third Hive box, `stores` (plain `Map`s, no TypeAdapter), with the list under key `list` and the selected username under `selected`. `EBAY_SELLER_USERNAME` in `.env` only *seeds* the first store when the list is empty. `ListingsNotifier.build()` watches the selected username, so switching stores rebuilds it and triggers `load()`; `_fetchFromApi` drops responses for a store that is no longer selected. Renaming or deleting a store calls `CacheService.clearSeller`. The store pills (`listings/widgets/store_pills.dart`) share `SelectablePill` with the heat filter.
+
+**Odoo purchases:** `features/odoo` + `core/api/odoo_api_client.dart`. The backend's `/odoo/*` routes register a figure in Odoo's Purchase module (vendor = the eBay seller, product `EBAY-<legacyItemId>` with the first image, RFQ line at the user's cost); the app never talks to Odoo directly. Items are keyed by `EbayListing.legacyItemId` (the middle part of `itemId` `v1|<id>|0`; a getter, not a Hive field). `odooPurchasesProvider` batch-looks-up the state of all loaded listings whenever the set of item ids changes; `OdooPurchaseButton` (overlaid on each card's image) shows that state and opens `OdooPurchaseSheet`, which re-reads the item, shows the current eBay value and saves the cost (`PUT` creates the RFQ the first time, then only updates the cost). The seller sent to Odoo is the selected store's username. Confirming the RFQ and receiving it happens in Odoo.
 
 **UI state:** besides `listingsProvider` and `storesProvider`, there are `sortProvider` and `heatFilterProvider` (Hot/Warm/Cold), both simple `Notifier`s. Theme tokens (dark theme only) are in `shared/theme/app_theme.dart`.
 

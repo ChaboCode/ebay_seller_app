@@ -30,6 +30,8 @@ dispositivo del usuario ni queda expuesto en un build web.
 - **Filtros de orden**: termina antes/después, precio mayor/menor
 - **Modo offline**: muestra caché de la última sesión si no hay internet
 - **Cache de 30 min**: abre instantáneo sin esperar la API
+- **Compras en Odoo**: botón sobre la imagen de cada tarjeta para registrar
+  la figura en el módulo de Compras de Odoo (ver abajo)
 
 ---
 
@@ -57,7 +59,8 @@ EBAY_SELLER_USERNAME=nombre-del-vendedor
 
 Es el username de eBay del vendedor, el mismo que aparece en sus
 publicaciones. Si necesitás apuntar a otra URL de backend (por ejemplo local
-en desarrollo), cambiá `_apiUrl` en `lib/core/api/ebay_api_client.dart`.
+en desarrollo), usá `--dart-define=API_URL=http://localhost:PUERTO/` (el
+valor por defecto está en `AppConfig.apiUrl`).
 
 ### 3. Instalar dependencias
 
@@ -174,3 +177,37 @@ flutter build web --release
 ```
 
 El APK arm64 pesa aproximadamente **13-16 MB**.
+
+---
+
+## Odoo (módulo de Compras)
+
+Cada tarjeta tiene, sobre la imagen, un botón con el estado de la figura en
+Odoo:
+
+| Botón | Significado |
+| --- | --- |
+| **Odoo** | todavía no está en Odoo |
+| **RFQ** | solicitud de presupuesto en borrador: falta confirmarla en Odoo |
+| **PO** | orden de compra confirmada, sin recibir |
+| **Stock** | recibida: ya está en inventario |
+| **Locked** | orden bloqueada en Odoo |
+
+Al tocarlo se abre una hoja con el valor actual en eBay (puja actual o
+precio), el estado en Odoo y un campo **Costo**. *Add to purchases* registra
+en Odoo el vendedor (la tienda seleccionada, p. ej. `@sakura0418`; se crea
+si no existe), el producto con el título y la primera imagen, y una RFQ con
+ese costo. Si la figura ya está en Odoo, *Save cost* solo actualiza el
+costo. Después, en Odoo, se confirma la RFQ y se valida la recepción para
+que la figura entre al inventario y se pueda vender en el sitio web.
+
+La conexión con Odoo vive en el backend (variables `ODOO_URL`, `ODOO_DB`,
+`ODOO_USERNAME`, `ODOO_API_KEY`; ver el README de `ebay_seller_backend`). Si
+el backend define `ODOO_BRIDGE_TOKEN`, compilá la app con el mismo valor:
+
+```bash
+flutter run --dart-define=ODOO_BRIDGE_TOKEN=...
+```
+
+Ese token queda dentro del build (sobre todo en web), así que solo frena
+llamadas casuales; no es un secreto real.
